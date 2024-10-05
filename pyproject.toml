@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "llm-scheduler"
+version = "0.1.0"
+description = "A tool library for large language models to initiate delayed or scheduled tasks through natural language, supporting multiple backends including k8s cronjob/job and celery, and providing integration with mainstream LLM/agent frameworks."
+authors = ["Pandazki <onlrrr@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+keywords = ["llm", "scheduler", "task", "cronjob", "celery", "kubernetes", "natural-language", "agent"]
+homepage = "https://github.com/pandazki/llm-scheduler"
+repository = "https://github.com/pandazki/llm-scheduler"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+packages = [
+    { include = "llm_scheduler", from = "src" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+pydantic = "^2.9.2"
+aiohttp = {version = "^3.10.5", extras = ["executor-http"]}
+croniter = {version = "^3.0.3", extras = ["backend-in-memory"]}
+openai = "^1.47.1"
+
+[tool.poetry.extras]
+backend-in-memory = ["croniter"]
+executor-http = ["aiohttp"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+black = "^24.8.0"
+flake8 = "^7.1.1"
+mypy = "^1.11.2"
+sphinx = "^8.0.2"
+pytest-asyncio = "^0.24.0"
+aioresponses = "^0.7.6"
+langfuse = "^2.51.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+ignore_missing_imports = true
+strict = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+]
+
+[tool.poetry.scripts]
+test = "pytest"
