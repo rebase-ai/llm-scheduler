@@ -55,7 +55,6 @@ class InMemoryBackend(BaseBackend):
                     await self.scheduler_task
                 except asyncio.CancelledError:
                     pass
-            # Cancel all running job futures
             for future in self.job_futures.values():
                 if not future.done():
                     future.cancel()
@@ -124,12 +123,10 @@ class InMemoryBackend(BaseBackend):
                             if next_execution and next_execution <= now:
                                 self._schedule_task_execution(task)
                                 self._update_next_execution_time(task)
-                await asyncio.sleep(1)  # Check every second
+                await asyncio.sleep(1)
         except asyncio.CancelledError:
-            # Handle task cancellation gracefully
             pass
         except Exception as e:
-            # Log any unexpected exceptions
             print(f"Error in scheduler loop: {e}")
 
     def _schedule_task_execution(self, task: Task):
@@ -178,5 +175,4 @@ class InMemoryBackend(BaseBackend):
         
         self.tasks[task.id] = task
 
-# Warning message
 print("WARNING: InMemoryBackend is for demonstration purposes only. Do not use in production.")

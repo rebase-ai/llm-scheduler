@@ -8,11 +8,9 @@ from llm_scheduler.domain.task import Task
 from llm_scheduler.domain.job import Job, JobStatus
 from llm_scheduler.executor_factory import JobExecutorFactory
 
-# Define the AgentTask schema
 class AgentTask(BaseModel):
     intent: str = Field(..., description="The user's intent or command")
 
-# Define the PrintExecutor
 class PrintExecutor(JobExecutor):
     @staticmethod
     def supported_schema() -> str:

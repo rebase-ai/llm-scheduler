@@ -5,7 +5,7 @@ LLM Scheduler is a tool library designed to enable large language models (LLMs) 
 ## Features
 
 - Natural language interface for scheduling tasks
-- Support for multiple backend systems (Kubernetes, Celery)
-- Integration with popular LLM and agent frameworks
+- [TODO]Support for multiple backend systems (Kubernetes, Celery)
+- [TODO]Integration with popular LLM and agent frameworks
 - Flexible and extensible architecture
 
