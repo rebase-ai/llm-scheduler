@@ -1,6 +1,7 @@
 import uuid
 from enum import Enum
 from typing import Any, Dict, Optional
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,8 @@ class Job(BaseModel):
     task: Task = Field(..., description="The task associated with this job")
     status: JobStatus = JobStatus.PENDING
     result: Optional[Any] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
 
     @property
     def payload(self) -> Optional[Dict[str, Any]]:
@@ -36,6 +39,10 @@ class Job(BaseModel):
         Update the status of the job.
         """
         self.status = status
+        if status == JobStatus.RUNNING:
+            self.start_time = datetime.now()
+        elif status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+            self.end_time = datetime.now()
 
     def set_result(self, result: Any, status: JobStatus = JobStatus.COMPLETED):
         """

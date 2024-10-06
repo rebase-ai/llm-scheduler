@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Optional, Union
+import warnings
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, field_validator
@@ -54,7 +55,11 @@ class Task(BaseModel):
     @field_validator('created_at')
     def check_timezone(cls, v: datetime) -> datetime:
         if v.tzinfo is None:
-            raise ValueError("Datetime must include a timezone to ensure accurate representation of the user's local time. For applications using a single timezone, consider explicitly specifying UTC+0.")
+            warnings.warn("Datetime does not include a timezone. Defaulting to UTC+0 for consistent representation. "
+                          "Note: When using SQLite for storage, timezone information may be automatically discarded. "
+                          "If preserving original timezone information is crucial for your business logic, "
+                          "consider using a database that supports timezone storage, such as PostgreSQL.", UserWarning)
+            return v.replace(tzinfo=ZoneInfo("UTC"))
         return v
 
     @property

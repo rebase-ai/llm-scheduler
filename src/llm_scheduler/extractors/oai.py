@@ -7,7 +7,8 @@ try:
 except ImportError:
     from openai import AsyncOpenAI
 import os
-from datetime import datetime
+import tzlocal
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from llm_scheduler.domain.task import BaseSchedule, OneTimeSchedule, RecurringSchedule
 
@@ -49,8 +50,11 @@ class RecurringScheduleSchema(BaseModel):
         cron_parts = self.cron_expression.split()
         if len(cron_parts) == 5:
             minute, hour, day, month, day_of_week = cron_parts
-            utc_hour = int((int(hour) - timezone.utcoffset(datetime.now()).total_seconds() // 3600) % 24)
-            utc_cron = f"{minute} {utc_hour} {day} {month} {day_of_week}"
+            if hour.isdigit():
+                utc_hour = int((int(hour) - timezone.utcoffset(datetime.now()).total_seconds() // 3600) % 24)
+                utc_cron = f"{minute} {utc_hour} {day} {month} {day_of_week}"
+            else:
+                utc_cron = self.cron_expression
         else:
             utc_cron = self.cron_expression
 
@@ -64,6 +68,8 @@ class RecurringScheduleSchema(BaseModel):
 
 
 DEFAULT_EXTRACT_SCHEDULE_SYSTEM_PROMPT: str = """You are a schedule extractor. Your task is to carefully analyze the given input and extract schedule information according to the provided schemas. Pay close attention to the schema descriptions and ensure that all extracted information conforms to the specified formats.
+
+current time: {current_time}
 
 {schema_descriptions}
 
@@ -141,7 +147,8 @@ class OpenAIExtractor(BaseExtractor):
         """
         Extract schedule information from the input data.
         """
-        prompt: str = self.extract_schedule_prompt.format(schema_descriptions=self.schedule_schema_descriptions)
+        # TODO: Expand the time information to include year, month, day, hour, minute, second, and weekday to facilitate time reasoning by a large model and reduce error rates.
+        prompt: str = self.extract_schedule_prompt.format(schema_descriptions=self.schedule_schema_descriptions, current_time=datetime.now(tzlocal.get_localzone()).isoformat())
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
