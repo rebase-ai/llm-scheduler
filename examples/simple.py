@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, Type
+from typing import Dict, Optional, Type
 from pydantic import BaseModel, Field
 from llm_scheduler.backends.playground import PlaygroundBackend
 from llm_scheduler.executors.protocol import JobExecutor
@@ -7,9 +7,10 @@ from llm_scheduler.extractors.oai import OpenAIExtractor
 from llm_scheduler.domain.task import Task
 from llm_scheduler.domain.job import Job, JobStatus
 from llm_scheduler.executor_factory import JobExecutorFactory
+from llm_scheduler.extractors.base import NoopResult
 
 class AgentTask(BaseModel):
-    intent: str = Field(..., description="The user's intent or command")
+    action_command: str = Field(None, description="The action command to execute.")
 
 class PrintExecutor(JobExecutor):
     @staticmethod
@@ -37,17 +38,20 @@ async def chatbot():
             break
 
         try:
-            schedule = await extractor.extract_schedule(user_input)
-            schema_name, payload = await extractor.extract_payload(user_input)
+            extract_result = await extractor.extract(user_input)
+            if isinstance(extract_result, NoopResult):
+                print("No task could be extracted from the input.")
+                continue
+
             task = Task(
-                name=f"User Intent: {payload['intent']}",
-                schedule=schedule,
-                payload_schema_name=schema_name,
-                payload=payload
+                name=user_input,  # Use the original user input as the task name
+                schedule=extract_result.schedule,
+                payload_schema_name=extract_result.payload_schema_name,
+                payload=extract_result.payload
             )
             await backend.create_task(task)
             print(f"Task created: {task.name}")
-            print(f"Schedule: {schedule}")
+            print(f"Schedule: {task.schedule}")
         except Exception as e:
             print(f"Error: {e}")
 

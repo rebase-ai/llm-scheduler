@@ -5,7 +5,7 @@ import pytest
 import pytest_asyncio
 from llm_scheduler.backends.playground import PlaygroundBackend
 from llm_scheduler.domain.job import JobStatus, Job
-from llm_scheduler.domain.task import Task, OneTimeSchedule, RecurringSchedule, ScheduleType
+from llm_scheduler.domain.task import Task, OneTimeSchedule, RecurringSchedule, ImmediateSchedule, ScheduleType
 from datetime import datetime, timedelta, timezone
 from llm_scheduler.executor_factory import JobExecutorFactory
 from llm_scheduler.executors.protocol import JobExecutor
@@ -95,6 +95,17 @@ def recurring_task() -> Task:
     )
 
 
+@pytest.fixture(scope="function")
+def immediate_task() -> Task:
+    return Task(
+        name="Immediate Task",
+        schedule=ImmediateSchedule(),
+        payload_schema_name="DummyPayload",
+        payload=DummyPayload(message="Immediate task data").model_dump(),
+        is_active=True
+    )
+
+
 @pytest.mark.asyncio
 async def test_create_task(backend: PlaygroundBackend, one_time_task: Task) -> None:
     task_id: str = await backend.create_task(one_time_task)
@@ -168,3 +179,21 @@ async def test_auto_cancel_previous_job(slow_backend: PlaygroundBackend, recurri
 
     jobs: List[Job] = await slow_backend.list_jobs(task_id)
     assert jobs[2].status == JobStatus.CANCELLED, "Expected third job to be cancelled after backend is stopped"
+
+
+@pytest.mark.asyncio
+async def test_immediate_task(backend: PlaygroundBackend, immediate_task: Task) -> None:
+    task_id: str = await backend.create_task(immediate_task)
+
+    # Wait for a short time to allow the task to be executed
+    await asyncio.sleep(0.1)
+
+    # Check that the task has been executed immediately
+    executed_job: Job | None = await backend.get_recent_job(task_id)
+    assert executed_job is not None, "Expected immediate task to be executed"
+    assert executed_job.status == JobStatus.COMPLETED, "Expected immediate task to be completed"
+
+    # Check that only one job was created and executed
+    jobs: List[Job] = await backend.list_jobs(task_id)
+    assert len(jobs) == 1, "Expected only one job for immediate task"
+    assert jobs[0].status == JobStatus.COMPLETED, "Expected immediate task job to be completed"

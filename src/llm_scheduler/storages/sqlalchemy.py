@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, Column, String, DateTime, Boolean, JSON, F
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from sqlalchemy.future import select
-from llm_scheduler.domain.task import Task, OneTimeSchedule, RecurringSchedule, ScheduleType
+from llm_scheduler.domain.task import Task, OneTimeSchedule, RecurringSchedule, ImmediateSchedule, ScheduleType
 from llm_scheduler.domain.job import Job, JobStatus
 from llm_scheduler.storages.protocol import Storage
 
@@ -102,7 +102,7 @@ class SqlAlchemyStorage(Storage):
                 return True
             return False
 
-    async def list_tasks(self, limit: int = 100, offset: int = 0) -> List[Task]:
+    async def list_tasks(self, limit: int = 20, offset: int = 0) -> List[Task]:
         async with self.async_session() as session:
             result = await session.execute(select(TaskModel).offset(offset).limit(limit).order_by(TaskModel.created_at.desc()))
             return [self._db_to_task(db_task) for db_task in result.scalars()]
@@ -142,7 +142,7 @@ class SqlAlchemyStorage(Storage):
                 return True
             return False
 
-    async def list_jobs(self, task_id: str, limit: int = 10) -> List[Job]:
+    async def list_jobs(self, task_id: str, limit: int = 20) -> List[Job]:
         async with self.async_session() as session:
             result = await session.execute(select(JobModel).filter_by(task_id=task_id).limit(limit))
             return [self._db_to_job(db_job) for db_job in result.scalars()]
@@ -164,8 +164,12 @@ class SqlAlchemyStorage(Storage):
         schedule_type = ScheduleType(db_task.schedule_type)
         if schedule_type == ScheduleType.ONE_TIME:
             schedule = OneTimeSchedule(**json.loads(db_task.schedule))
-        else:
+        elif schedule_type == ScheduleType.RECURRING:
             schedule = RecurringSchedule(**json.loads(db_task.schedule))
+        elif schedule_type == ScheduleType.IMMEDIATE:
+            schedule = ImmediateSchedule()
+        else:
+            raise ValueError(f"Unsupported schedule type: {schedule_type}")
 
         return Task(
             id=db_task.id,

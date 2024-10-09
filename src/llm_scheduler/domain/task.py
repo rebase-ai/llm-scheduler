@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class ScheduleType(str, Enum):
+    IMMEDIATE = "immediate"
     ONE_TIME = "one_time"
     RECURRING = "recurring"
 
@@ -18,6 +19,12 @@ class BaseSchedule(BaseModel):
     """
     type: ScheduleType
     description: Optional[str] = Field(None, description="Original schedule description, can store raw content extracted by LLM, timezone info, and other descriptive information")
+
+class ImmediateSchedule(BaseSchedule):
+    """
+    Defines an immediate schedule for task execution.
+    """
+    type: ScheduleType = ScheduleType.IMMEDIATE
 
 class OneTimeSchedule(BaseSchedule):
     """
@@ -46,7 +53,7 @@ class Task(BaseModel):
         default_factory=lambda: datetime.now(ZoneInfo("UTC")),
         description="Task creation timestamp with UTC timezone"
     )
-    schedule: Union[OneTimeSchedule, RecurringSchedule] = Field(..., description="Task schedule configuration")
+    schedule: Union[ImmediateSchedule, OneTimeSchedule, RecurringSchedule] = Field(..., description="Task schedule configuration")
     payload: Dict[str, Any] = Field(..., description="Data payload for task execution")
     payload_schema_name: str = Field(..., description="Name of the schema for the payload")
     meta: Optional[Dict[str, Any]] = Field(default=None, description="Custom metadata for user-defined extensions")
@@ -69,6 +76,10 @@ class Task(BaseModel):
     @property
     def is_one_time(self) -> bool:
         return self.schedule.type == ScheduleType.ONE_TIME
+
+    @property
+    def is_immediate(self) -> bool:
+        return self.schedule.type == ScheduleType.IMMEDIATE
     
     @property
     def schedule_type(self) -> ScheduleType:

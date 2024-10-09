@@ -1,9 +1,6 @@
-import asyncio
 from celery import Celery
 from numpy import take
-from pydantic import BaseModel
-from llm_scheduler.domain.job import Job
-from llm_scheduler.domain.task import Task
+from llm_scheduler.domain.task import Task, ScheduleType
 from llm_scheduler.executor_factory import JobExecutorFactory
 from llm_scheduler.backends.base import BaseBackend
 from redbeat import RedBeatSchedulerEntry
@@ -34,6 +31,9 @@ class CeleryBackend(BaseBackend):
         self._tasks = {}
         self._jobs = {}
 
+    async def _create_immediate_task(self, task: Task) -> None:
+        self._celery_task.apply_async(args=[task.id])
+
     async def _create_one_time_task(self, task: Task) -> None:
         eta = task.schedule.execution_time
         self._celery_task.apply_async(args=[task.id], eta=eta)
@@ -62,10 +62,14 @@ class CeleryBackend(BaseBackend):
 
         task_id = await self.storage.create_task(task)
 
-        if task.is_one_time:
+        if task.schedule_type == ScheduleType.IMMEDIATE:
+            await self._create_immediate_task(task)
+        elif task.schedule_type == ScheduleType.ONE_TIME:
             await self._create_one_time_task(task)
-        else:
+        elif task.schedule_type == ScheduleType.RECURRING:
             await self._create_recurring_task(task)
+        else:
+            raise ValueError(f"Unsupported schedule type: {task.schedule_type}")
 
         return task_id
 

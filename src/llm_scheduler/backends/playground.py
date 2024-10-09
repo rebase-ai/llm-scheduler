@@ -68,9 +68,13 @@ class PlaygroundBackend(BaseBackend):
             cron = croniter(task.schedule.cron_expression, now, second_at_beginning=True)
             self.next_execution_times[task.id] = cron.get_next(datetime)
 
-    def create_task(self, task: Task) -> str:
-        self._update_next_execution_time(task)
-        return super().create_task(task)
+    async def create_task(self, task: Task) -> str:
+        task_id = await super().create_task(task)
+        if task.schedule.type == ScheduleType.IMMEDIATE:
+            self._schedule_task_execution(task)
+        else:
+            self._update_next_execution_time(task)
+        return task_id
 
     async def _scheduler_loop(self):
         """

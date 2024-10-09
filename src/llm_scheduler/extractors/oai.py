@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Callable, List, Tuple, Type, Union
 import json
 from pydantic import BaseModel, Field, ValidationError
-from llm_scheduler.extractors.base import BaseExtractor, ExtractResult
+from llm_scheduler.extractors.base import BaseExtractor, ExtractResult, NoopResult
 try:
     from langfuse.openai import AsyncOpenAI
 except ImportError:
@@ -10,8 +10,14 @@ import os
 import tzlocal
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
-from llm_scheduler.domain.task import BaseSchedule, OneTimeSchedule, RecurringSchedule
+from llm_scheduler.domain.task import BaseSchedule, OneTimeSchedule, RecurringSchedule, ImmediateSchedule, ScheduleType
 
+
+class ImmediateScheduleSchema(BaseModel):
+    description: Optional[str] = Field(None, description="Description for an immediate task execution.")
+
+    def to_schedule(self) -> ImmediateSchedule:
+        return ImmediateSchedule(description=self.description)
 
 class OneTimeScheduleSchema(BaseModel):
     execution_time: str = Field(..., description="ISO formatted datetime string with timezone information for a one-time delayed task execution. This field represents when the task should be executed.")
@@ -69,6 +75,8 @@ class RecurringScheduleSchema(BaseModel):
 
 DEFAULT_EXTRACT_SCHEDULE_SYSTEM_PROMPT: str = """You are a schedule extractor. Your task is to carefully analyze the given input and extract schedule information according to the provided schemas. Pay close attention to the schema descriptions and ensure that all extracted information conforms to the specified formats.
 
+Important: If the user's instruction doesn't specify a particular execution time or recurrence pattern, assume the task should be executed immediately.
+
 current time: {current_time}
 
 {schema_descriptions}
@@ -95,7 +103,9 @@ Return a JSON object with the following structure:
     }}
 }}
 
-If multiple schemas could potentially match the input, choose the most appropriate one based on the available information. Ensure that all extracted information is accurate, complete, and fully compliant with the chosen schema's requirements."""
+If multiple schemas could potentially match the input, choose the most appropriate one based on the available information. Ensure that all extracted information is accurate, complete, and fully compliant with the chosen schema's requirements.
+
+If no task or actionable intent can be extracted from the input, use the __BuiltInNoopTask__ schema and provide a reason for why no task could be identified."""
 
 class OpenAIExtractor(BaseExtractor):
     def __init__(
@@ -116,12 +126,12 @@ class OpenAIExtractor(BaseExtractor):
         self.client: AsyncOpenAI = AsyncOpenAI(api_key=api_key)
         self.model: str = model 
         self.extract_schedule_prompt: str = extract_schedule_prompt
-
         self.extract_payload_prompt: str = extract_payload_prompt
         self.transform: Optional[Callable[[Any], Any]] = transform
         self.system_message: Optional[str] = system_message
         self.schema_descriptions: str = self._generate_schema_descriptions(schemas)
         self.schedule_schema_descriptions: str = self._generate_schema_descriptions({
+            "ImmediateScheduleSchema": ImmediateScheduleSchema,
             "OneTimeScheduleSchema": OneTimeScheduleSchema,
             "RecurringScheduleSchema": RecurringScheduleSchema
         })
@@ -143,11 +153,10 @@ class OpenAIExtractor(BaseExtractor):
             descriptions.append(schema_description)
         return "\n".join(descriptions)
 
-    async def extract_schedule(self, input_data: Any) -> Union[OneTimeSchedule, RecurringSchedule]:
+    async def extract_schedule(self, input_data: Any) -> Optional[Union[ImmediateSchedule, OneTimeSchedule, RecurringSchedule]]:
         """
         Extract schedule information from the input data.
         """
-        # TODO: Expand the time information to include year, month, day, hour, minute, second, and weekday to facilitate time reasoning by a large model and reduce error rates.
         prompt: str = self.extract_schedule_prompt.format(schema_descriptions=self.schedule_schema_descriptions, current_time=datetime.now(tzlocal.get_localzone()).isoformat())
         response = await self.client.chat.completions.create(
             model=self.model,
@@ -161,20 +170,22 @@ class OpenAIExtractor(BaseExtractor):
         schema_name: str = result["schema_name"]
         schedule_data: Dict[str, Any] = result["schedule"]
 
-        if schema_name == "OneTimeScheduleSchema":
+        if schema_name == "ImmediateScheduleSchema":
+            schema: Type[BaseModel] = ImmediateScheduleSchema
+        elif schema_name == "OneTimeScheduleSchema":
             schema: Type[BaseModel] = OneTimeScheduleSchema
         elif schema_name == "RecurringScheduleSchema":
             schema: Type[BaseModel] = RecurringScheduleSchema
         else:
-            raise ValueError(f"Invalid schema name: {schema_name}")
+            return None
 
         try:
-            validated_data: Union[OneTimeScheduleSchema, RecurringScheduleSchema] = schema(**schedule_data)
+            validated_data: Union[ImmediateScheduleSchema, OneTimeScheduleSchema, RecurringScheduleSchema] = schema(**schedule_data)
             return validated_data.to_schedule()
-        except ValidationError as e:
-            raise ValueError(f"Invalid schedule data: {e}")
+        except ValidationError:
+            return None
 
-    async def extract_payload(self, input_data: Any) -> Tuple[str, Dict[str, Any]]:
+    async def extract_payload(self, input_data: Any) -> Optional[Tuple[str, Dict[str, Any]]]:
         """
         Extract payload information from the input data.
         """
@@ -192,11 +203,12 @@ class OpenAIExtractor(BaseExtractor):
         payload_data: Dict[str, Any] = result["payload"]
 
         if schema_name not in self.schemas:
-            raise ValueError(f"Invalid schema name: {schema_name}")
+            return None
 
         schema: Type[BaseModel] = self.schemas[schema_name]
         try:
             validated_data: BaseModel = schema(**payload_data)
             return schema_name, validated_data.model_dump()
-        except ValidationError as e:
-            raise ValueError(f"Invalid payload data: {e}")
+        except ValidationError:
+            return None
+
