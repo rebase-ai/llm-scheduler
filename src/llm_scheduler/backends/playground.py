@@ -88,7 +88,7 @@ class PlaygroundBackend(BaseBackend):
                     if task.is_active:
                         if task.schedule.type == ScheduleType.ONE_TIME:
                             if task.schedule.execution_time <= now:
-                                jobs = await self.list_jobs(task.id)
+                                jobs = await self.list_recent_jobs(task.id)
                                 if not jobs:
                                     self._schedule_task_execution(task)
                                     await self.update_task(task)
@@ -123,7 +123,7 @@ class PlaygroundBackend(BaseBackend):
             asyncio.create_task(self._cancel_running_jobs(task_id))
 
     async def _cancel_running_jobs(self, task_id: str):
-        jobs = await self.list_jobs(task_id)
+        jobs = await self.list_recent_jobs(task_id)
         for job in jobs:
             if job.status == JobStatus.RUNNING:
                 job.set_status(JobStatus.CANCELLED)

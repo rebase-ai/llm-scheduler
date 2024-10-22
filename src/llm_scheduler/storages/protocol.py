@@ -35,8 +35,8 @@ class Storage(Protocol):
         """Update an existing job. Return True if successful, False otherwise."""
         ...
 
-    async def list_jobs(self, task_id: str, limit: int = 10) -> List[Job]:
-        """List jobs for a specific task with limit."""
+    async def list_recent_jobs(self, task_id: str, limit: int = 10) -> List[Job]:
+        """List jobs for a specific task with limit order by start_time descending"""
         ...
 
     async def get_recent_job(self, task_id: str) -> Optional[Job]:

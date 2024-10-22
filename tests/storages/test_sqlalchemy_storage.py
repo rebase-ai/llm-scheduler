@@ -218,7 +218,7 @@ async def test_list_jobs(sqlite_storage: SqlAlchemyStorage):
         await sqlite_storage.create_job(job)
 
     # List jobs
-    listed_jobs = await sqlite_storage.list_jobs(task.id, limit=3)
+    listed_jobs = await sqlite_storage.list_recent_jobs(task.id, limit=3)
     assert len(listed_jobs) == 3
     assert all(job.task.id == task.id for job in listed_jobs)
 

@@ -142,9 +142,14 @@ class SqlAlchemyStorage(Storage):
                 return True
             return False
 
-    async def list_jobs(self, task_id: str, limit: int = 20) -> List[Job]:
+    async def list_recent_jobs(self, task_id: str, limit: int = 20) -> List[Job]:
         async with self.async_session() as session:
-            result = await session.execute(select(JobModel).filter_by(task_id=task_id).limit(limit))
+            result = await session.execute(
+                select(JobModel)
+                .filter_by(task_id=task_id)
+                .order_by(JobModel.start_time.desc())
+                .limit(limit)
+            )
             return [self._db_to_job(db_job) for db_job in result.scalars()]
 
     async def get_recent_job(self, task_id: str) -> Optional[Job]:
@@ -152,7 +157,7 @@ class SqlAlchemyStorage(Storage):
             result = await session.execute(
                 select(JobModel)
                 .filter_by(task_id=task_id)
-                .order_by(JobModel.id.desc())
+                .order_by(JobModel.start_time.desc())
                 .limit(1)
             )
             db_job = result.scalar_one_or_none()

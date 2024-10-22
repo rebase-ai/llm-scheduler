@@ -55,11 +55,25 @@ class BaseBackend(ABC):
     async def delete_task(self, task_id: str) -> bool:
         return await self.storage.delete_task(task_id)
 
-    async def get_recent_job(self, task_id: str) -> Optional[Job]:
+    async def activate_task(self, task_id: str) -> bool:
+        task = await self.get_task(task_id)
+        if task:
+            task.activate()
+            return await self._update_task(task)
+        return False
+
+    async def deactivate_task(self, task_id: str) -> bool:
+        task = await self.get_task(task_id)
+        if task:
+            task.deactivate()
+            return await self._update_task(task)
+        return False
+
+    async def get_latest_job(self, task_id: str) -> Optional[Job]:
         return await self.storage.get_recent_job(task_id)
 
-    async def list_jobs(self, task_id: str, limit: int = 10) -> List[Job]:
-        return await self.storage.list_jobs(task_id, limit)
+    async def list_recent_jobs(self, task_id: str, limit: int = 10) -> List[Job]:
+        return await self.storage.list_recent_jobs(task_id, limit)
 
     async def _create_job(self, task: Task) -> Job:
         job = Job(task=task)
@@ -70,7 +84,9 @@ class BaseBackend(ABC):
         return await self.storage.update_job(job)
 
     async def _execute_task(self, task: Task):
-        
+        if not task.is_active:
+            return
+
         job = await self._create_job(task)
 
         job.set_status(JobStatus.RUNNING)
