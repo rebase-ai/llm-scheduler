@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Any, Dict, Optional, Union
 import logging
 from zoneinfo import ZoneInfo
+from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -13,12 +14,16 @@ class ScheduleType(str, Enum):
     ONE_TIME = "one_time"
     RECURRING = "recurring"
 
-class BaseSchedule(BaseModel):
+class BaseSchedule(BaseModel, ABC):
     """
     Base class for all schedule types.
     """
     type: ScheduleType
     description: Optional[str] = Field(None, description="Original schedule description, can store raw content extracted by LLM, timezone info, and other descriptive information")
+
+    @abstractmethod
+    def format_schedule(self) -> str:
+        pass
 
 class ImmediateSchedule(BaseSchedule):
     """
@@ -26,12 +31,18 @@ class ImmediateSchedule(BaseSchedule):
     """
     type: ScheduleType = ScheduleType.IMMEDIATE
 
+    def format_schedule(self) -> str:
+        return "Scheduled for immediate execution"
+
 class OneTimeSchedule(BaseSchedule):
     """
     Defines a one-time schedule for task execution.
     """
     type: ScheduleType = ScheduleType.ONE_TIME
     execution_time: datetime = Field(..., description="Precise datetime for task execution")
+
+    def format_schedule(self) -> str:
+        return f"Scheduled for one-time execution at {self.execution_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
 
 class RecurringSchedule(BaseSchedule):
     """
@@ -41,6 +52,13 @@ class RecurringSchedule(BaseSchedule):
     cron_expression: str = Field(..., description="Cron expression defining the recurring execution pattern")
     start_time: Optional[datetime] = Field(None, description="Start time for the recurring schedule")
     end_time: Optional[datetime] = Field(None, description="End time for the recurring schedule")
+    def format_schedule(self) -> str:
+        schedule_str = f"Scheduled to recur with cron expression: {self.cron_expression}"
+        if self.start_time:
+            schedule_str += f", starting from {self.start_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        if self.end_time:
+            schedule_str += f", ending at {self.end_time.strftime('%Y-%m-%d %H:%M:%S %Z')}"
+        return schedule_str
 
 class Task(BaseModel):
     """
@@ -90,3 +108,14 @@ class Task(BaseModel):
 
     def activate(self) -> None:
         self.is_active = True
+        
+    @property
+    def readable_string(self) -> str:
+        task_summary = f"Task Name: '{self.name}'"
+        if self.description:
+            task_summary += f"\nDescription: {self.description}"
+
+        schedule_details = self.schedule.format_schedule()
+        payload_details = f"Task Data: {self.payload}"
+        
+        return f"{task_summary}\n{schedule_details}\n{payload_details}"
