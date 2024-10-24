@@ -22,6 +22,9 @@ class PrintExecutor(JobExecutor):
         return "AgentTask"
 
     async def async_execute(self, job: Job) -> None:
+        job.result = {
+            "message": f"Executed job {job.id} with payload: {job.payload}"
+        }
         print(f"Executing job {job.id} with payload: {job.payload}")
 
 # Set up the backend and extractor
