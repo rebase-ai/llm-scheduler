@@ -1,0 +1,2 @@
+/* This is the order in which the layers are globally defined, ensuring that the styles override as expected. */
+@layer tw_base, mantine, tw_components, tw_utilities;

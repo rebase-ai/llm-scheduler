@@ -1,0 +1,1 @@
+export const PROJECT_STORE_PREFIX = 'LLM_SCHEDULER';

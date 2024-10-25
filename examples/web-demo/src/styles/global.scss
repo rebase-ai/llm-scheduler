@@ -1,0 +1,43 @@
+/*
+Although according to the specification, @import can exist after @charset or @layer, in practice, during the bundling process, all @import statements are moved to the top. Therefore, to ensure that the layer order definition is placed at the very top, we use the approach of declaring them in a separate file and importing it.
+This file needs to be a SCSS file, or if it's a CSS file, you need to add the postcss-import plugin. As mentioned in issues like https://github.com/vercel/next.js/issues/16630, Next.js does not guarantee the import order of CSS files, especially during production builds.
+Currently, most solutions rely on declaring the @layer cascade and its order to ensure that styles are overridden as expected. While defining the layers is easy, as mentioned before, the import order cannot be guaranteed during production builds.
+There are currently two explored ways to ensure the order during production builds:
+Use a CSS file and include the postcss-import plugin
+Use an SCSS file
+Another approach is to use a script to insert styles at the very top: https://github.com/vercel/next.js/issues/16630#issuecomment-1644918877
+In this case, we'll use the SCSS approach.
+As of Dart Sass 1.80.0, the @import rule is deprecated, so we'll use the @use rule instead. ps: @import layers.css sass will remove @layer's [end ;] on prod build!
+*/
+@use 'layers.css';
+@use 'tailwind.css';
+@use '@mantine/core/styles.layer.css' as mantineCore;
+@use '@mantine/notifications/styles.layer.css' as mantineNotifications;
+
+:root {
+  --sb-track-color: transparent;
+  --sb-thumb-color: rgb(180, 180, 180);
+  --sb-size: 5px;
+}
+
+html {
+  ::-webkit-scrollbar {
+    width: var(--sb-size);
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--sb-track-color);
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--sb-thumb-color);
+    border-radius: 5px;
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    body {
+      scrollbar-color: var(--sb-thumb-color) var(--sb-track-color);
+    }
+  }
+}
